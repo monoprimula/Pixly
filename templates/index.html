@@ -1,0 +1,719 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="icon" type="image/x-icon" href="{{ url_for('static', filename='favicon.ico') }}">
+    <title>Görüntü İşleme Uygulaması</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <style>
+        :root {
+            --primary-color: #4a90e2;
+            --secondary-color: #2c3e50;
+            --accent-color: #e74c3c;
+            --light-color: #ecf0f1;
+            --dark-color: #2c3e50;
+        }
+
+        body {
+            background-color: var(--light-color);
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+
+        .navbar {
+            background-color: var(--secondary-color);
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+
+        .navbar-brand {
+            color: white !important;
+            font-weight: bold;
+        }
+
+        .card {
+            border: none;
+            border-radius: 15px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+            transition: transform 0.3s ease;
+        }
+
+        .card:hover {
+            transform: translateY(-5px);
+        }
+
+        .card-header {
+            background-color: var(--primary-color);
+            color: white;
+            border-radius: 15px 15px 0 0 !important;
+            padding: 1.5rem;
+        }
+
+        .preview-container {
+            background-color: white;
+            border-radius: 15px;
+            padding: 20px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+        }
+
+        .preview-image {
+            max-width: 100%;
+            max-height: 400px;
+            border-radius: 10px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+
+        .parameter-group {
+            display: none;
+            margin-top: 20px;
+            background-color: white;
+            padding: 20px;
+            border-radius: 10px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+
+        #imagePreview {
+            max-width: 100%;
+            max-height: 400px;
+            margin-top: 10px;
+            cursor: crosshair;
+            border-radius: 10px;
+        }
+
+        .crop-overlay {
+            position: absolute;
+            border: 2px dashed var(--primary-color);
+            background-color: rgba(74, 144, 226, 0.2);
+            pointer-events: none;
+            border-radius: 10px;
+        }
+
+        .preview-wrapper {
+            position: relative;
+            display: inline-block;
+            margin-bottom: 10px;
+            border-radius: 10px;
+            overflow: hidden;
+        }
+
+        .btn-primary {
+            background-color: var(--primary-color);
+            border: none;
+            padding: 10px 25px;
+            border-radius: 25px;
+            font-weight: bold;
+            transition: all 0.3s ease;
+        }
+
+        .btn-primary:hover {
+            background-color: var(--secondary-color);
+            transform: translateY(-2px);
+        }
+
+        .form-control {
+            border-radius: 10px;
+            border: 2px solid #e0e0e0;
+            padding: 10px 15px;
+        }
+
+        .form-control:focus {
+            border-color: var(--primary-color);
+            box-shadow: 0 0 0 0.2rem rgba(74, 144, 226, 0.25);
+        }
+
+        .form-label {
+            font-weight: 600;
+            color: var(--secondary-color);
+        }
+
+        .operation-icon {
+            font-size: 1.2rem;
+            margin-right: 8px;
+        }
+
+        .loading-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0,0,0,0.5);
+            display: none;
+            justify-content: center;
+            align-items: center;
+            z-index: 1000;
+        }
+
+        .loading-spinner {
+            width: 50px;
+            height: 50px;
+            border: 5px solid #f3f3f3;
+            border-top: 5px solid var(--primary-color);
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        
+    </style>
+</head>
+<body>
+    <nav class="navbar navbar-expand-lg navbar-dark mb-4">
+        <div class="container">
+            <a class="navbar-brand" href="#">
+                <i class="fas fa-camera-retro me-2"></i>
+                Görüntü İşleme Uygulaması
+            </a>
+        </div>
+    </nav>
+
+    <div class="container">
+        <div class="row">
+            <div class="col-md-6">
+                <div class="card mb-4">
+                    <div class="card-header">
+                        <h4 class="mb-0">Görüntü İşleme</h4>
+                    </div>
+                    <div class="card-body">
+                        <form id="goruntuForm" enctype="multipart/form-data">
+                            <div class="mb-4">
+                                <label for="image" class="form-label">Görüntü Seçin</label>
+                                <input type="file" class="form-control" id="image" name="file" accept="image/*">
+                            </div>
+                            
+                            <div class="mb-4">
+                                <label for="operation" class="form-label">İşlem Seçin</label>
+                                <select class="form-control" id="operation" name="operation">
+                                    <option value="binary">Binary Dönüşüm</option>
+                                    <option value="grayscale">Gri Tonlamaya Çevir</option>
+                                    <option value="resize">Yeniden Boyutlandır</option>
+                                    <option value="contrast">Kontrast Artırma</option>
+                                    <option value="crop">Kırp</option>
+                                    <option value="rotate">Döndür</option>
+                                    <option value="threshold">Tek Eşikleme</option>
+                                    <option value="color_space">Renk Uzayı Dönüşümü</option>
+                                    <option value="edge_detection">Kenar Tespiti</option>
+                                    <option value="filter">Filtreleme (unsharp)</option>
+                                    <option value="add_noise">Gürültü Ekle (Tuz-Biber)</option>
+                                    <option value="mean_filter">Ortalama Filtresi </option>
+                                    <option value="mean_convolution_manual">Konvolüsyon (mean) </option>
+                                    <option value="median_filter">Medyan Filtresi (Gürültü Azaltma)</option>
+                                    <option value="morphology">Morfolojik İşlemler</option>
+                                    <option value="image_arithmetic">Görüntü Aritmetiği</option>
+                                    <option value="histogram_germe">Histogram Germe (Genişletme)</option>
+                                    <option value="histogram_esitleme">Histogram Eşitleme</option>
+                                </select>
+                            </div>
+
+                            <!-- Döndürme Parametreleri -->
+                            <div id="rotateParams" class="parameter-group">
+                                <div class="mb-3">
+                                    <label for="rotateAngle" class="form-label">Döndürme Açısı (derece)</label>
+                                    <input type="number" class="form-control" id="rotateAngle" name="rotateAngle" min="-360" max="360" value="45">
+                                </div>
+                            </div>
+
+                            <!-- Kırpma Parametreleri -->
+                            <div id="cropParams" class="parameter-group">
+                                <div class="mb-3">
+                                    <label class="form-label">Kırpma Alanını Seçin</label>
+                                    <div class="preview-wrapper">
+                                        <img id="imagePreview" src="#" alt="Önizleme" style="display: none;">
+                                        <div id="cropOverlay" class="crop-overlay" style="display: none;"></div>
+                                    </div>
+                                    <input type="hidden" id="cropX1" name="cropX1">
+                                    <input type="hidden" id="cropY1" name="cropY1">
+                                    <input type="hidden" id="cropX2" name="cropX2">
+                                    <input type="hidden" id="cropY2" name="cropY2">
+                                </div>
+                            </div>
+                            <!-- Morfolojik İşlemler Parametreleri -->
+                            <div id="morphologyParams" class="parameter-group">
+                                <div class="mb-3">
+                                    <label for="morphType" class="form-label">Morfolojik İşlem Tipi</label>
+                                    <select class="form-control" id="morphType" name="morphType">
+                                        <option value="dilation">Genişletme</option>
+                                        <option value="erosion">Aşınma</option>
+                                        <option value="opening">Açma </option>
+                                        <option value="closing">Kapama</option>
+                                    </select>
+                                </div>
+                                <div class="mb-3">
+                                    <label for="structElement" class="form-label">Yapı Elemanı Şekli</label>
+                                    <select class="form-control" id="structElement" name="structElement">
+                                        <option value="kare">Kare</option>
+                                        <option value="daire">Daire</option>
+                                    </select>
+                                </div>
+                                <div class="mb-3">
+                                    <label for="structSize" class="form-label">Yapı Elemanı Boyutu</label>
+                                    <input type="number" class="form-control" id="structSize" name="structSize" min="3" max="15" step="2" value="3">
+                                    <small class="form-text text-muted">Tek sayı olmalı (3, 5, 7, ...)</small>
+                                </div>
+                                <div class="mb-3">
+                                    <label for="iterations" class="form-label">İterasyon Sayısı</label>
+                                    <input type="number" class="form-control" id="iterations" name="iterations" min="1" max="10" value="1">
+                                </div>
+                            </div>
+
+                            <!-- Yeniden Boyutlandırma Parametreleri -->
+                            <div id="resizeParams" class="parameter-group">
+                                <div class="mb-3">
+                                    <label for="resizeScale" class="form-label">Ölçek (0.1 - 2.0)</label>
+                                    <input type="number" class="form-control" id="resizeScale" name="resizeScale" min="0.1" max="5.0" step="0.1" value="0.5">
+                                </div>
+                            </div>
+                            <!-- Görüntü Aritmetiği Parametreleri -->
+                            <div id="image_arithmeticParams" class="parameter-group">
+                                <div class="mb-3">
+                                    <label for="secondImage" class="form-label">İkinci Görüntü (Opsiyonel)</label>
+                                    <input type="file" class="form-control" id="secondImage" name="secondImage" accept="image/*">
+                                </div>
+                                <div class="mb-3">
+                                    <label for="arithmeticOperation" class="form-label">Aritmetik İşlem</label>
+                                    <select class="form-control" id="arithmeticOperation" name="arithmeticOperation">
+                                        <option value="toplama">Toplama</option>
+                                        <option value="bolme">Bölme</option>
+                                        <option value="agirlikli_toplama">Ağırlıklı Toplama</option>
+                                    </select>
+                                </div>
+                                <div class="mb-3" id="weightParams">
+                                    <label for="alpha" class="form-label">Alpha (İlk görüntü ağırlığı: 0.0 - 1.0)</label>
+                                    <input type="number" class="form-control" id="alpha" name="alpha" min="0.0" max="1.0" step="0.1" value="0.5">
+                                    
+                                    <label for="beta" class="form-label mt-2">Beta (İkinci görüntü ağırlığı: 0.0 - 1.0)</label>
+                                    <input type="number" class="form-control" id="beta" name="beta" min="0.0" max="1.0" step="0.1" value="0.5">
+                                </div>
+                            </div>
+                            <!-- Kontrast Parametreleri -->
+                            <div id="contrastParams" class="parameter-group">
+                                <div class="mb-3">
+                                    <label for="contrastFactor" class="form-label">Kontrast Faktörü (0.1 - 3.0)</label>
+                                    <input type="number" class="form-control" id="contrastFactor" name="contrastFactor" min="0.1" max="3.0" step="0.1" value="1.5">
+                                </div>
+                            </div>
+                            <!-- Gürültü Ekleme Parametreleri -->
+                            <div id="add_noiseParams" class="parameter-group">
+                                <div class="mb-3">
+                                    <label for="noiseIntensity" class="form-label">Gürültü Yoğunluğu (0.01 - 0.5)</label>
+                                    <input type="number" class="form-control" id="noiseIntensity" name="noiseIntensity" min="0.01" max="0.5" step="0.01" value="0.05">
+                                </div>
+                            </div>
+
+                            <!-- Ortalama Filtresi Parametreleri -->
+                            <div id="mean_filterParams" class="parameter-group">
+                                <div class="mb-3">
+                                    <label for="meanKernelSize" class="form-label">Kernel Boyutu</label>
+                                    <select class="form-control" id="meanKernelSize" name="meanKernelSize">
+                                        <option value="3">3x3</option>
+                                        <option value="5">5x5</option>
+                                        <option value="7">7x7</option>
+                                    </select>
+                                </div>
+                            </div>
+
+                            <!-- Medyan Filtresi Parametreleri -->
+                            <div id="median_filterParams" class="parameter-group">
+                                <div class="mb-3">
+                                    <label for="medianKernelSize" class="form-label">Kernel Boyutu</label>
+                                    <select class="form-control" id="medianKernelSize" name="medianKernelSize">
+                                        <option value="3">3x3</option>
+                                        <option value="5">5x5</option>
+                                        <option value="7">7x7</option>
+                                    </select>
+                                </div>
+                            </div>
+
+                            <!-- Binary Dönüşüm Parametreleri -->
+                            <div id="binaryParams" class="parameter-group">
+                                <div class="mb-3">
+                                    <label for="binaryThreshold" class="form-label">Eşik Değeri (0-255)</label>
+                                    <input type="number" class="form-control" id="binaryThreshold" name="binaryThreshold" min="0" max="255" value="128">
+                                </div>
+                            </div>
+                            <div id="thresholdParams" class="parameter-group">
+                                <div class="mb-3">
+                                    <label for="thresholdValue" class="form-label">Eşik Değeri (0-255)</label>
+                                    <input type="number" class="form-control" id="thresholdValue" name="thresholdValue" min="0" max="255" value="128">
+                                </div>
+                            </div>
+
+                            <!-- Filtreleme Parametreleri -->
+                            <div id="filterParams" class="parameter-group">
+                                <div class="mb-3">
+                                    <label for="unsharpAmount" class="form-label">Keskinleştirme Miktarı (0.0 - 5.0)</label>
+                                    <input type="number" class="form-control" id="unsharpAmount" name="unsharpAmount" min="0.0" max="5.0" step="0.1" value="1.0">
+                                </div>
+                                <div class="mb-3">
+                                    <label for="unsharpRadius" class="form-label">Yarıçap (0.1 - 5.0)</label>
+                                    <input type="number" class="form-control" id="unsharpRadius" name="unsharpRadius" min="0.1" max="5.0" step="0.1" value="1.0">
+                                </div>
+                                <div class="mb-3">
+                                    <label for="unsharpThreshold" class="form-label">Eşik Değeri (0-255)</label>
+                                    <input type="number" class="form-control" id="unsharpThreshold" name="unsharpThreshold" min="0" max="255" value="0">
+                                </div>
+                            </div>
+                          <!-- Konvolüsyon Parametreleri -->
+                            <div id="mean_convolution_manualParams" class="parameter-group">
+                                <div class="mb-3">
+                                    <label for="kernelSize" class="form-label">Kernel Boyutu (3-15)</label>
+                                    <input type="range" class="form-control" id="kernelSize" name="kernelSize" min="3" max="15" step="2" value="3">
+                                    <span id="kernelSizeValue">3</span>
+                                </div>
+                            </div>
+                            <div id="color_spaceParams" class="parameter-group">
+                                <div class="mb-3">
+                                    <label for="colorSpaceType" class="form-label">Dönüşüm Tipi</label>
+                                    <select class="form-control" id="colorSpaceType" name="colorSpaceType">
+                                        <option value="rgb_to_hsv">RGB → HSV</option>
+                                        <option value="rgb_to_lab">RGB → Lab</option>
+                                        <option value="rgb_to_ycbcr">RGB → YCbCr</option>
+                                    </select>
+                                </div>
+                            </div>
+                            <!-- Kenar Tespiti Parametreleri -->
+                            <div id="edge_detectionParams" class="parameter-group">
+                                <div class="mb-3">
+                                    <p class="form-text">Prewitt operatörü kullanılarak kenar tespiti yapılacaktır.</p>
+                                </div>
+                            </div>
+                            
+                            <!-- Histogram Görüntüleme Alanı -->
+                            <div id="histogramContainer" class="parameter-group">
+                                <div class="row justify-content-center">
+                                    <div class="col-md-6 text-center">
+                                        <h5>Orijinal Histogram</h5>
+                                        <canvas id="originalHistogram" width="270" height="200" style="background-color: white; border-radius: 10px; padding: 10px;"></canvas>
+                                    </div>
+                                    <div class="col-md-6 text-center">
+                                        <h5>İşlem Sonrası Histogram</h5>
+                                        <canvas id="resultHistogram" width="270" height="200" style="background-color: white; border-radius: 10px; padding: 10px;"></canvas>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="text-center mt-4">
+                                <button type="submit" class="btn btn-primary">
+                                    <i class="fas fa-cog me-2"></i>İşlemi Uygula
+                                </button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="col-md-6">
+                <div class="card mb-4">
+                    <div class="card-header">
+                        <h4 class="mb-0">İşlenmiş Görüntü</h4>
+                    </div>
+                    <div class="card-body">
+                        <div class="preview-container">
+                            <div id="processedImageContainer" class="text-center">
+                                <img id="processedImage" class="preview-image" style="display: none;">
+                                <div id="noProcessedImage" class="text-muted">
+                                    <i class="fas fa-image fa-3x mb-3"></i>
+                                    <p>İşlenmiş görüntü burada görüntülenecek</p>
+                                </div>
+                            </div>
+                            <div class="text-center mt-3">
+                                <button id="downloadButton" class="btn btn-primary" style="display: none;">
+                                    <i class="fas fa-download me-2"></i>Görüntüyü İndir
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="loading-overlay">
+        <div class="loading-spinner"></div>
+    </div>
+
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+
+        //Kırpma işlemi için başlangıç koordinatları, fare hareket kontrolü ve bazı HTML elementleri seçiliyor.
+        let isDragging = false;
+        let startX, startY;
+        let cropOverlay = document.getElementById('cropOverlay');
+        let imagePreview = document.getElementById('imagePreview');
+        let previewWrapper = document.querySelector('.preview-wrapper');
+
+        // Görüntü yükleme işlemi
+        document.getElementById('image').addEventListener('change', function(e) {
+            const file = e.target.files[0];
+            if (file) {
+                const reader = new FileReader();
+                reader.onload = function(e) {
+                    imagePreview.src = e.target.result;
+                    imagePreview.style.display = 'block';
+                }
+                reader.readAsDataURL(file);
+            }
+        });
+
+        // İşlem tipi değiştiğinde parametre gruplarını göster/gizle
+        document.getElementById('operation').addEventListener('change', function() {
+            // Tüm parametre gruplarını gizle
+            document.querySelectorAll('.parameter-group').forEach(group => {
+                group.style.display = 'none';
+            });
+            
+            // Seçili işlemin parametre grubunu göster
+            const selectedGroup = document.getElementById(this.value + 'Params');
+            if (selectedGroup) {
+                selectedGroup.style.display = 'block';
+            }
+        });
+
+        // Aritmetik işlem seçildiğinde alpha ve beta değerlerini görünür hale getir
+        document.getElementById('arithmeticOperation').addEventListener('change', function() {
+            const weightParams = document.getElementById('weightParams');
+            if (this.value === 'agirlikli_toplama') {
+                weightParams.style.display = 'block';
+            } else {
+                weightParams.style.display = 'none';
+            }
+        });
+
+        // Kırpma işlemi için fare olayları
+         //mousedown: Kullanıcı mouse ile tıklamaya başladığında kırpma kutusunun başlangıç noktası belirleniyor.
+        previewWrapper.addEventListener('mousedown', function(e) {
+            if (document.getElementById('operation').value === 'crop') {
+                isDragging = true;
+                const rect = imagePreview.getBoundingClientRect();
+                startX = e.clientX - rect.left;
+                startY = e.clientY - rect.top;
+                
+                cropOverlay.style.left = startX + 'px';
+                cropOverlay.style.top = startY + 'px';
+                cropOverlay.style.width = '0px';
+                cropOverlay.style.height = '0px';
+                cropOverlay.style.display = 'block';
+            }
+        });
+        //mousemove: Kullanıcı sürükledikçe kutunun boyutları ve konumu güncelleniyor.
+        previewWrapper.addEventListener('mousemove', function(e) {
+            if (isDragging) {
+                const rect = imagePreview.getBoundingClientRect();
+                const currentX = e.clientX - rect.left;
+                const currentY = e.clientY - rect.top;
+                
+                const width = currentX - startX;
+                const height = currentY - startY;
+                
+                cropOverlay.style.width = Math.abs(width) + 'px';
+                cropOverlay.style.height = Math.abs(height) + 'px';
+                
+                if (width < 0) {
+                    cropOverlay.style.left = currentX + 'px';
+                }
+                if (height < 0) {
+                    cropOverlay.style.top = currentY + 'px';
+                }
+            }
+        });
+        //mouseup: Kullanıcı bırakınca koordinatlar hesaplanıyor ve form alanlarına yazılıyor.
+        previewWrapper.addEventListener('mouseup', function(e) {
+            if (isDragging) {
+                isDragging = false;
+                const rect = imagePreview.getBoundingClientRect();
+                const currentX = e.clientX - rect.left;
+                const currentY = e.clientY - rect.top;
+                
+                // Görüntünün gerçek boyutlarına göre koordinatları hesapla
+                const scaleX = imagePreview.naturalWidth / rect.width;
+                const scaleY = imagePreview.naturalHeight / rect.height;
+                
+                const x1 = Math.round(Math.min(startX, currentX) * scaleX);
+                const y1 = Math.round(Math.min(startY, currentY) * scaleY);
+                const x2 = Math.round(Math.max(startX, currentX) * scaleX);
+                const y2 = Math.round(Math.max(startY, currentY) * scaleY);
+                
+                // Koordinatları sınırlar içinde tut
+                const finalX1 = Math.max(0, Math.min(x1, imagePreview.naturalWidth));
+                const finalY1 = Math.max(0, Math.min(y1, imagePreview.naturalHeight));
+                const finalX2 = Math.max(0, Math.min(x2, imagePreview.naturalWidth));
+                const finalY2 = Math.max(0, Math.min(y2, imagePreview.naturalHeight));
+                
+                // Kırpma koordinatlarını kaydet
+                document.getElementById('cropX1').value = finalX1;
+                document.getElementById('cropY1').value = finalY1;
+                document.getElementById('cropX2').value = finalX2;
+                document.getElementById('cropY2').value = finalY2;
+            }
+        });
+
+
+        // HTML dosyasının sonundaki script kısmına ekleyin
+        document.getElementById('kernelSize').addEventListener('input', function() {
+            document.getElementById('kernelSizeValue').textContent = this.value;
+        });
+        // Form gönderimini güncelle
+        document.getElementById('goruntuForm').addEventListener('submit', function(e) {
+            e.preventDefault();
+            
+            const formData = new FormData(this);
+            const operation = formData.get('operation');
+            
+            // Yükleme göstergesini göster
+            document.querySelector('.loading-overlay').style.display = 'flex';
+            
+            // Histogram işlemleri için özel kontrol
+            if (operation === 'histogram_germe' || operation === 'histogram_esitleme') {
+                fetch('/islem', {
+                    method: 'POST',
+                    body: formData
+                })
+                .then(response => {
+                    if (!response.ok) {
+                        throw new Error('Sunucu hatası: ' + response.status);
+                    }
+                    return response.json();
+                })
+                .then(data => {
+                    if (data.success) {
+                        const resultImage = document.getElementById('processedImage');
+                        const noProcessedImage = document.getElementById('noProcessedImage');
+                        const downloadButton = document.getElementById('downloadButton');
+                        resultImage.src = 'data:image/jpeg;base64,' + data.image;
+                        resultImage.style.display = 'block';
+                        if (noProcessedImage) noProcessedImage.style.display = 'none';
+                        if (downloadButton) downloadButton.style.display = 'block';
+                        // Histogram bilgilerini göster
+                        const histogramContainer = document.getElementById('histogramContainer');
+                        if (data.histogram_original && data.histogram_sonuc) {
+                            histogramContainer.style.display = 'block';
+                            drawHistogram('originalHistogram', JSON.parse(data.histogram_original));
+                            drawHistogram('resultHistogram', JSON.parse(data.histogram_sonuc));
+                        } else {
+                            histogramContainer.style.display = 'none';
+                        }
+                    } else {
+                        throw new Error(data.error || 'Bilinmeyen bir hata oluştu');
+                    }
+                })
+                .catch(error => {
+                    console.error('Hata:', error);
+                    alert('Bir hata oluştu: ' + error.message);
+                })
+                .finally(() => {
+                    // Yükleme göstergesini gizle
+                    document.querySelector('.loading-overlay').style.display = 'none';
+                });
+            } else {
+                // Diğer işlemler için normal işlem
+                fetch('/islem', {
+                    method: 'POST',
+                    body: formData
+                })
+                .then(response => {
+                    if (!response.ok) {
+                        throw new Error('Sunucu hatası: ' + response.status);
+                    }
+                    return response.json();
+                })
+                .then(data => {
+                    if (data.success) {
+                        const resultImage = document.getElementById('processedImage');
+                        const noProcessedImage = document.getElementById('noProcessedImage');
+                        const downloadButton = document.getElementById('downloadButton');
+                        resultImage.src = 'data:image/jpeg;base64,' + data.image;
+                        resultImage.style.display = 'block';
+                        if (noProcessedImage) noProcessedImage.style.display = 'none';
+                        if (downloadButton) downloadButton.style.display = 'block';
+                        document.getElementById('histogramContainer').style.display = 'none';
+                    } else {
+                        throw new Error(data.error || 'Bilinmeyen bir hata oluştu');
+                    }
+                })
+                .catch(error => {
+                    console.error('Hata:', error);
+                    alert('Bir hata oluştu: ' + error.message);
+                })
+                .finally(() => {
+                    // Yükleme göstergesini gizle
+                    document.querySelector('.loading-overlay').style.display = 'none';
+                });
+            }
+        });
+
+        // Histogram çizme fonksiyonu  (jquery)
+        function drawHistogram(canvasId, histogramData) {
+            const canvas = document.getElementById(canvasId);
+            const ctx = canvas.getContext('2d');
+            const width = canvas.width;
+            const height = canvas.height;
+            
+            // Canvas'ı temizle ve hafif gri arka plan ekle
+            ctx.fillStyle = '#f0f0f0';
+            ctx.fillRect(0, 0, width, height);
+            
+            // Histogram verilerini normalize et
+            const maxValue = Math.max(...histogramData);
+            const barWidth = width / histogramData.length;
+            
+            // Her bir çubuk için
+            for (let i = 0; i < histogramData.length; i++) {
+                const barHeight = (histogramData[i] / maxValue) * height;
+                const x = i * barWidth;
+                const y = height - barHeight;
+                
+                // Çubuğu çiz
+                ctx.fillStyle = '#ff0000'; // Kırmızı
+                ctx.globalAlpha = 1.0; // Tam opaklık
+                ctx.fillRect(x, y, Math.max(2, barWidth - 1), barHeight);
+            }
+            
+            // Eksenleri çiz
+            ctx.strokeStyle = '#2c3e50';
+            ctx.lineWidth = 2; // Eksen çizgilerini biraz kalınlaştır
+            
+            // X ekseni
+            ctx.beginPath();
+            ctx.moveTo(0, height);
+            ctx.lineTo(width, height);
+            ctx.stroke();
+            
+            // Y ekseni
+            ctx.beginPath();
+            ctx.moveTo(0, 0);
+            ctx.lineTo(0, height);
+            ctx.stroke();
+        }
+
+        // İndirme butonu işlevselliği
+        document.getElementById('downloadButton').addEventListener('click', function() {
+            const processedImage = document.getElementById('processedImage');
+            if (processedImage.src) {
+                const link = document.createElement('a');
+                link.href = processedImage.src;
+                link.download = 'islenmis_goruntu.jpg';
+                document.body.appendChild(link);
+                link.click();
+                document.body.removeChild(link);
+            }
+        });
+
+        // İşlenmiş görüntü gösterildiğinde indirme butonunu göster
+        function showProcessedImage(imageData) {
+            const processedImage = document.getElementById('processedImage');
+            const noProcessedImage = document.getElementById('noProcessedImage');
+            const downloadButton = document.getElementById('downloadButton');
+            
+            processedImage.src = 'data:image/jpeg;base64,' + imageData;
+            processedImage.style.display = 'block';
+            noProcessedImage.style.display = 'none';
+            downloadButton.style.display = 'block';
+        }
+    </script>
+</body>
+</html> 
